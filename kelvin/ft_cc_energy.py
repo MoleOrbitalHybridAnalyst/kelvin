@@ -32,6 +32,44 @@ def ft_cc_energy(T1, T2, f, eri, g, beta, Qterm=True):
     return (Es1 + Es2) / beta
 
 
+def zt_ucc_energy(T1a, T1b, T2aa, T2ab, T2bb, fa, fb, Ia, Ib, Iabab, Qterm=True):
+    """Return the FT-CC free-energy without integration.
+
+    Args:
+        T1 (array): T1 amplitudes.
+        T2 (array): T2 amplitudes.
+        f (array): 1-electron (Fock matrix) integrals.
+        eri (array): 2-electron (ERI) integrals.
+        Qterm (bool,optional): Include quadratic contribution?
+
+    """
+    t1a_temp = T1a
+    t1b_temp = T1b
+    if Qterm:
+        t2aa_temp = 0.25*T2aa + 0.5*einsum('ai,bj->abij', T1a, T1a)
+        t2bb_temp = 0.25*T2bb + 0.5*einsum('ai,bj->abij', T1b, T1b)
+        t2ab_temp = T2ab + einsum('ai,bj->abij', T1a, T1b)
+    else:
+        t2aa_temp = 0.25*T2aa
+        t2ab_temp = T2ab
+        t2bb_temp = 0.25*T2aa
+
+    # do not do integration
+    t1a_n = t1a_temp
+    t1b_n = t1b_temp
+    t2aa_n = t2aa_temp
+    t2ab_n = t2ab_temp
+    t2bb_n = t2bb_temp
+
+    Es1 = einsum('ai,ia->', t1a_n, fa)
+    Es1 += einsum('ai,ia->', t1b_n, fb)
+    Es2 = einsum('abij,ijab->', t2aa_n, Ia)
+    Es2 += einsum('abij,ijab->', t2ab_n, Iabab)
+    Es2 += einsum('abij,ijab->', t2bb_n, Ib)
+
+    return Es1 + Es2
+
+
 def ft_ucc_energy(T1a, T1b, T2aa, T2ab, T2bb, fa, fb, Ia, Ib, Iabab, g, beta, Qterm=True):
     """Return the FT-CC free-energy.
 

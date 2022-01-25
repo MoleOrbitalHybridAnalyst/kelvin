@@ -164,6 +164,46 @@ def uccsd_stanton(Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold,
     return (T1a, T1b), (T2aa, T2ab, T2bb)
 
 
+def zt_uccsd(Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold, T2bbold, D1a, D1b, D2aa, D2ab, D2bb, dt=None):
+    """CCSD at single time point
+    """
+    nva, noa = Fa.vo.shape
+    nvb, nob = Fb.vo.shape
+
+    T1a = -Fa.vo.copy()
+    T1b = -Fb.vo.copy()
+    T2aa = -Ia.vvoo.copy()
+    T2bb = -Ib.vvoo.copy()
+    T2ab = -Iabab.vvoo.copy()
+    T1olds = (T1aold, T1bold)
+    T2olds = (T2aaold, T2abold, T2bbold)
+    cc_equations._u_Stanton(
+        T1a, T1b, T2aa, T2ab, T2bb,
+        Fa, Fb, Ia, Ib, Iabab, T1olds, T2olds, fac=-1.0)
+
+    if dt is None:
+        # at single time, integration becomse 1/Delta
+        T1a = T1a / D1a
+        T1b = T1b / D1b
+        T2aa = T2aa / D2aa
+        T2ab = T2ab / D2ab
+        T2bb = T2bb / D2bb
+    else:
+        # use imag. time form instead
+        T1a = T1aold - dt * (-T1a + D1a * T1aold)
+        T1b = T1bold - dt * (-T1b + D1b * T1bold)
+        T2aa = T2aaold - dt * (-T2aa + D2aa * T2aaold)
+        T2ab = T2abold - dt * (-T2ab + D2ab * T2abold)
+        T2bb = T2bbold - dt * (-T2bb + D2bb * T2bbold)
+#        numpy.fill_diagonal(T1a, 0)
+#        numpy.fill_diagonal(T1b, 0)
+#        numpy.fill_diagonal(T2aa, 0)
+#        numpy.fill_diagonal(T2ab, 0)
+#        numpy.fill_diagonal(T2bb, 0)
+
+    return (T1a, T1b), (T2aa, T2ab, T2bb)
+
+
 def uccsd_stanton_single(ig, Fa, Fb, Ia, Ib, Iabab, T1a, T1b, T2aa, T2ab,
                          T2bb, T1bara, T1barb, T2baraa, T2barab, T2barbb,
                          D1a, D1b, D2aa, D2ab, D2bb, ti, ng, G):

@@ -85,6 +85,34 @@ def form_new_ampl_u(method, Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2ab
 
     return T1out, T2out
 
+def zt_form_new_ampl_u(method, Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold, T2bbold,
+        D1a, D1b, D2aa, D2ab, D2bb, dt=None):
+    """Form new amplitudes.
+
+    Arguments:
+        method (str): Amplitude equation type.
+        F (array): Fock matrix.
+        I (array): ERI tensor.
+        T1old (array): T1 amplitudes.
+        T2old (array): T2 amplitudes.
+        D1 (array): 1-electron denominators.
+        D2 (array): 2-electron denominators.
+    """
+    if method == "CCSD":
+        T1out, T2out = ft_cc_equations.zt_uccsd(
+            Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold, T2bbold,
+            D1a, D1b, D2aa, D2ab, D2bb, dt)
+    elif method == "CCD":
+        raise NotImplementedError()
+    elif method == "LCCSD":
+        raise NotImplementedError()
+    elif method == "LCCD":
+        raise NotImplementedError()
+    else:
+        raise Exception("Unrecognized method keyword for unrestricted calc")
+
+    return T1out, T2out
+
 
 def form_new_ampl_extrap(ig, method, F, I, T1, T2, T1bar, T2bar, D1, D2, ti, ng, G):
     if method == "CCSD":
@@ -307,6 +335,93 @@ def ft_ucc_iter(method, T1aold, T1bold, T2aaold, T2abold, T2bbold, Fa, Fb, Ia, I
         if numpy.abs(E - Eold) < ethresh and res1+res2 < tthresh:
             converged = True
         Eold = E
+
+    if not converged:
+        logging.warning("{} did not converge!".format(method))
+
+    tend = time.time()
+    logging.info("Total {} time: {:.4f} s".format(method, (tend - tbeg)))
+
+    return Eold, (T1aold, T1bold), (T2aaold, T2abold, T2bbold)
+
+
+def zt_ucc_iter(method, T1aold, T1bold, T2aaold, T2abold, T2bbold, Fa, Fb, Ia, Ib, Iabab,
+        D1a, D1b, D2aa, D2ab, D2bb, iprint, conv_options):
+    """Form new amplitudes.
+
+    Arguments:
+        method (str): Amplitude equation type.
+        F (array): Fock matrix.
+        I (array): ERI tensor.
+        T1old (array): T1 amplitudes.
+        T2old (array): T2 amplitudes.
+        D1 (array): 1-electron denominators.
+        D2 (array): 2-electron denominators.
+        iprint (int): print level.
+        conv_options (dict): Convergence options.
+    """
+    tbeg = time.time()
+    converged = False
+    ethresh = conv_options["econv"]
+    tthresh = conv_options["tconv"]
+    max_iter = conv_options["max_iter"]
+    alpha = conv_options["damp"]
+    dt = conv_options["dt"]
+    i = 0
+    Eold = 888888888.888888888
+    while i < max_iter and not converged:
+        T1out, T2out = zt_form_new_ampl_u(
+            method, Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold,
+            T2abold, T2bbold, D1a, D1b, D2aa, D2ab, D2bb, dt=dt)
+
+        nl1 = numpy.linalg.norm(T1aold) + 0.1
+        nl1 += numpy.linalg.norm(T1bold)
+        nl2 = numpy.linalg.norm(T2aaold) + 0.1
+        nl2 += numpy.linalg.norm(T2abold)
+        nl2 += numpy.linalg.norm(T2bbold)
+
+        res1 = numpy.linalg.norm(T1out[0] - T1aold) / nl1
+        res1 += numpy.linalg.norm(T1out[1] - T1bold) / nl1
+        res2 = numpy.linalg.norm(T2out[0] - T2aaold) / nl2
+        res2 += numpy.linalg.norm(T2out[1] - T2abold) / nl2
+        res2 += numpy.linalg.norm(T2out[2] - T2bbold) / nl2
+
+        # damp new T-amplitudes
+        T1aold = alpha*T1aold + (1.0 - alpha)*T1out[0]
+        T1bold = alpha*T1bold + (1.0 - alpha)*T1out[1]
+        T2aaold = alpha*T2aaold + (1.0 - alpha)*T2out[0]
+        T2abold = alpha*T2abold + (1.0 - alpha)*T2out[1]
+        T2bbold = alpha*T2bbold + (1.0 - alpha)*T2out[2]
+
+        # compute energy
+        E = ft_cc_energy.zt_ucc_energy(T1aold, T1bold, T2aaold, T2abold, T2bbold,
+            Fa.ov, Fb.ov, Ia.oovv, Ib.oovv, Iabab.oovv)
+
+        # determine convergence
+        if isinstance(E, complex):
+            logging.info(' %2d  %.10f  %.3E %.4E' % (i+1, E.real, E.imag, res1+res2))
+        else:
+            logging.info(' %2d  %.10f   %.4E' % (i+1, E, res1+res2))
+        i = i + 1
+        if numpy.abs(E - Eold) < ethresh and res1+res2 < tthresh:
+            converged = True
+        Eold = E
+
+        # monitor large T1 T2 amplitudes
+        def watch(data, nwatch):
+            ags = numpy.argsort(-numpy.abs(data.flatten()))
+            result = list()
+            for indx in ags[:nwatch]:
+                indx = numpy.unravel_index(indx, data.shape)
+                result.append([data[indx], indx])
+            return result
+        #pairs = watch(T2bbold, 10)
+        #for p in pairs:
+        #    print(p[0], p[1])
+
+        # early break when res is too large
+        if res1+res2 > 1E3:
+            break
 
     if not converged:
         logging.warning("{} did not converge!".format(method))
