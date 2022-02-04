@@ -51,8 +51,10 @@ class HubbardSystem(System):
                 raise Exception("No reference provided")
             if na is None or nb is None:
                 raise Exception("No reference provided")
-            self.Pa = numpy.einsum('pi,qi->pq', ua[:na], ua[:na])
-            self.Pb = numpy.einsum('pi,qi->pq', ua[:nb], ua[:nb])
+#            self.Pa = numpy.einsum('pi,qi->pq', ua[:na], ua[:na])
+#            self.Pb = numpy.einsum('pi,qi->pq', ub[:nb], ub[:nb])
+            self.Pa = numpy.einsum('pi,qi->pq', ua[:,:na], ua[:,:na])
+            self.Pb = numpy.einsum('pi,qi->pq', ub[:,:nb], ub[:,:nb])
             self.ua = ua
             self.ub = ub
         # build and diagonalize fock matrices
@@ -60,10 +62,10 @@ class HubbardSystem(System):
         Va = V - V.transpose((0, 1, 3, 2))
         Fa = self.r_hcore()
         Fb = self.r_hcore()
-        Fa += numpy.einsum('pqrs,qs->pr', Va, Pa)
-        Fa += numpy.einsum('pqrs,qs->pr', V, Pb)
-        Fb += numpy.einsum('pqrs,qs->pr', Va, Pb)
-        Fb += numpy.einsum('pqrs,pr->qs', V, Pa)
+        Fa += numpy.einsum('pqrs,qs->pr', Va, self.Pa)
+        Fa += numpy.einsum('pqrs,qs->pr', V, self.Pb)
+        Fb += numpy.einsum('pqrs,qs->pr', Va, self.Pb)
+        Fb += numpy.einsum('pqrs,pr->qs', V, self.Pa)
         self.Fa = Fa
         self.Fb = Fb
         if ua is None:
