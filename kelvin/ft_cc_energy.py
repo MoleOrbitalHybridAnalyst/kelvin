@@ -1,7 +1,7 @@
-#import numpy
+# import numpy
 from pyscf import lib
 einsum = lib.einsum
-#einsum = numpy.einsum
+# einsum = numpy.einsum
 
 
 def ft_cc_energy(T1, T2, f, eri, g, beta, Qterm=True):
@@ -70,7 +70,8 @@ def zt_ucc_energy(T1a, T1b, T2aa, T2ab, T2bb, fa, fb, Ia, Ib, Iabab, Qterm=True)
     return Es1 + Es2
 
 
-def ft_ucc_energy(T1a, T1b, T2aa, T2ab, T2bb, fa, fb, Ia, Ib, Iabab, g, beta, Qterm=True):
+def ft_ucc_energy(T1a, T1b, T2aa, T2ab, T2bb, fa, fb,
+                  Ia, Ib, Iabab, g, beta, Qterm=True):
     """Return the FT-CC free-energy.
 
     Args:
