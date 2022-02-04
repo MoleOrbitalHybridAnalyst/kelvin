@@ -182,12 +182,54 @@ def zt_uccsd(Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold, T2bbold, D
         Fa, Fb, Ia, Ib, Iabab, T1olds, T2olds, fac=-1.0)
 
     if dt is None:
-        # at single time, integration becomse 1/Delta
+        # we need special care for zeros in D 
+        # note that zeros in D were changed into infs previously
+
         T1a = T1a / D1a
         T1b = T1b / D1b
         T2aa = T2aa / D2aa
         T2ab = T2ab / D2ab
         T2bb = T2bb / D2bb
+
+#        def cap_add(a, b, x=0.5, e=1-10):
+#            return a + b
+##            s = a + b
+##            nmax = abs(a) * x + e
+##            if abs(s) > nmax:
+##                return numpy.sign(s) * nmax
+##            else:
+##                return s
+#
+#        print("T1a[0,0]:", T1a[0,0])
+#        mask = numpy.isinf(D1a)
+#        for a, i in zip(*numpy.where(mask)):
+#            T1a[a,i] = cap_add(T1aold[a,i], \
+#                    T1a[a,i] / (Fa.vv[a,a]-Fa.oo[i,i]) )
+#        T1a[~mask] = T1a[~mask] / D1a[~mask]
+#
+#        mask = numpy.isinf(D1b)
+#        for a, i in zip(*numpy.where(mask)):
+#            T1b[a,i] = cap_add(T1bold[a,i], \
+#                    T1b[a,i] / (Fb.vv[a,a]-Fb.oo[i,i]) )
+#        T1b[~mask] = T1b[~mask] / D1b[~mask]
+#
+#        mask = numpy.isinf(D2aa)
+#        for a, b, i, j in zip(*numpy.where(mask)):
+#            T2aa[a,b,i,j] = cap_add(T2aaold[a,b,i,j], \
+#                T2aa[a,b,i,j] / (Fa.vv[b,b]+Fa.vv[a,a]-Fa.oo[j,j]-Fa.oo[i,i]) )
+#        T2aa[~mask] = T2aa[~mask] / D2aa[~mask]
+#
+#        T2ab = T2ab / D2ab
+#        mask = numpy.isinf(D2ab)
+#        for a, b, i, j in zip(*numpy.where(mask)):
+#            T2ab[a,b,i,j] = cap_add(T2abold[a,b,i,j], \
+#                T2ab[a,b,i,j] / (Fa.vv[a,a]+Fb.vv[b,b]-Fa.oo[i,i]-Fb.oo[j,j]) )
+#
+#        mask = numpy.isinf(D2bb)
+#        for a, b, i, j in zip(*numpy.where(mask)):
+#            T2bb[a,b,i,j] = cap_add(T2bbold[a,b,i,j], \
+#                T2bb[a,b,i,j] / (Fb.vv[b,b]+Fb.vv[a,a]-Fb.oo[j,j]-Fb.oo[i,i]) )
+#        T2bb[~mask] = T2bb[~mask] / D2bb[~mask]
     else:
         # use imag. time form instead
         T1a = T1aold - dt * (-T1a + D1a * T1aold)
@@ -195,11 +237,18 @@ def zt_uccsd(Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold, T2bbold, D
         T2aa = T2aaold - dt * (-T2aa + D2aa * T2aaold)
         T2ab = T2abold - dt * (-T2ab + D2ab * T2abold)
         T2bb = T2bbold - dt * (-T2bb + D2bb * T2bbold)
-#        numpy.fill_diagonal(T1a, 0)
-#        numpy.fill_diagonal(T1b, 0)
-#        numpy.fill_diagonal(T2aa, 0)
-#        numpy.fill_diagonal(T2ab, 0)
-#        numpy.fill_diagonal(T2bb, 0)
+
+
+#    numpy.fill_diagonal(T1a, 0)
+#    numpy.fill_diagonal(T1b, 0)
+#    numpy.fill_diagonal(T2aa, 0)
+#    numpy.fill_diagonal(T2ab, 0)
+#    numpy.fill_diagonal(T2bb, 0)
+    T1a[numpy.abs(D1a) < 1E-15] = 0
+    T1b[numpy.abs(D1b) < 1E-15] = 0
+    T2aa[numpy.abs(D2aa) < 1E-15] = 0
+    T2ab[numpy.abs(D2ab) < 1E-15] = 0
+    T2bb[numpy.abs(D2bb) < 1E-15] = 0
 
     return (T1a, T1b), (T2aa, T2ab, T2bb)
 
