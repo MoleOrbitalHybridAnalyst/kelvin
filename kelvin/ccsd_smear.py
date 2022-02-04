@@ -182,7 +182,7 @@ class ccsd(object):
                     T1bold = -Fb.vo
                 else:
                     raise NotImplementedError()
-                logging.info("TODO: MP2 initials with deg. levels")
+                logging.info("TODO: MP2 initials with deg. levels?")
                 T2aaold = -Ia.vvoo
                 T2abold = -Iabab.vvoo
                 T2bbold = -Ib.vvoo
@@ -220,6 +220,13 @@ class ccsd(object):
                 D2aa[numpy.abs(D2aa) < 1E-15] = numpy.inf
                 D2ab[numpy.abs(D2ab) < 1E-15] = numpy.inf
                 D2bb[numpy.abs(D2bb) < 1E-15] = numpy.inf
+
+            # @@@@@ use zeros as initials
+            T1aold = numpy.zeros_like(T1aold)
+            T1bold = numpy.zeros_like(T1bold)
+            T2aaold = numpy.zeros_like(T2aaold)
+            T2abold = numpy.zeros_like(T2abold)
+            T2bbold = numpy.zeros_like(T2bbold)
 
             # run CC iterations
             Eccn, T1, T2 = cc_utils.zt_ucc_iter(

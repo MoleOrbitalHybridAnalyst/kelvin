@@ -415,9 +415,10 @@ def zt_ucc_iter(method, T1aold, T1bold, T2aaold, T2abold, T2bbold, Fa, Fb, Ia, I
                 indx = numpy.unravel_index(indx, data.shape)
                 result.append([data[indx], indx])
             return result
-        #pairs = watch(T2bbold, 10)
-        #for p in pairs:
-        #    print(p[0], p[1])
+        pairs = watch(T2abold, 5)
+        for p in pairs:
+            print(p[0], p[1])
+        print("T2ab[2,5,0,0]:", T2abold[2,5,0,0])
 
         # early break when res is too large
         if res1+res2 > 1E3:
