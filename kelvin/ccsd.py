@@ -35,6 +35,7 @@ class ccsd(object):
         athresh (float): Threshold for ignoring small occupations
         quad (string): Transformation for quadrature rule
         rt_iter (string): "all" or "point" for all-at-once or pointwise convergence
+        dt (float): Time step in imag. time form for a single point
         T1: Saved T1 amplitudes
         T2: Saved T2 amplitudes
         L1: Saved L1 amplitudes
@@ -43,7 +44,7 @@ class ccsd(object):
     def __init__(self, sys, T=0.0, mu=0.0, iprint=0,
                  singles=True, econv=1e-8, tconv=None, max_iter=40,
                  damp=0.0, ngrid=10, realtime=False, athresh=0.0,
-                 quad='lin', rt_iter="all"):
+                 quad='lin', rt_iter="all", dt=None, degcr=1E-12):
 
         self.T = T
         self.mu = mu
@@ -59,6 +60,9 @@ class ccsd(object):
         self.athresh = athresh
         self.quad = quad
         self.rt_iter = rt_iter
+        self.dt = dt
+        self.degcr = degcr
+
         if self.finite_T:
             self.realtime = True
         if not sys.verify(self.T, self.mu):
@@ -121,9 +125,15 @@ class ccsd(object):
                 return self._ft_ccsd()
             else:
                 if self.sys.has_u():
-                    return self._uccsd(T1in=T1, T2in=T2)
+                    if self.dt is None:
+                        return self._uccsd(T1in=T1, T2in=T2)
+                    else:
+                        return self._uccsd_imagt(T1in=T1, T2in=T2)
                 else:
-                    return self._ccsd()
+                    if self.dt is None:
+                        return self._ccsd()
+                    else:
+                        raise NotImplementedError()
 
     def compute_ESN(self, L1=None, L2=None, gderiv=True):
         """Compute energy, entropy, particle number."""
@@ -355,6 +365,13 @@ class ccsd(object):
         Doovvaa = 1.0/utils.D2(eoa, eva)
         Doovvbb = 1.0/utils.D2(eob, evb)
         Doovvab = 1.0/utils.D2u(eoa, eob, eva, evb)
+        # @@@@@@ regularize inf
+        Dova[numpy.abs(Dova)>1E10] = 0
+        Dovb[numpy.abs(Dovb)>1E10] = 0
+        Doovvaa[numpy.abs(Doovvaa)>1E10] = 0
+        Doovvbb[numpy.abs(Doovvbb)>1E10] = 0
+        Doovvab[numpy.abs(Doovvab)>1E10] = 0
+        # @@@@@@
 
         # get HF energy
         En = self.sys.const_energy()
@@ -381,6 +398,12 @@ class ccsd(object):
         Fa.vv = Fa.vv - numpy.diag(eva)  # subtract diagonal
         Fb.oo = Fb.oo - numpy.diag(eob)  # subtract diagonal
         Fb.vv = Fb.vv - numpy.diag(evb)  # subtract diagonal
+        # @@@@@@@@
+        Fa.oo = Fa.oo - numpy.diag(numpy.diag(Fa.oo))  # subtract diagonal
+        Fa.vv = Fa.vv - numpy.diag(numpy.diag(Fa.vv))  # subtract diagonal
+        Fb.oo = Fb.oo - numpy.diag(numpy.diag(Fb.oo))  # subtract diagonal
+        Fb.vv = Fb.vv - numpy.diag(numpy.diag(Fb.vv))  # subtract diagonal
+        # @@@@@@@@
 
         # get ERIs
         Ia, Ib, Iabab = self.sys.u_aint()
@@ -459,6 +482,159 @@ class ccsd(object):
         self.T1 = T1olds
         self.T2 = T2olds
         return (Eold + Ehf, Eold)
+
+    def _uccsd_imagt(self, T1in=None, T2in=None):
+        """Simple UCCSD implementation at zero temperature."""
+        # create energies and denominators in spin-orbital basis
+        eoa, eva, eob, evb = self.sys.u_energies()
+        Dova = utils.D1(eoa, eva)
+        Dovb = utils.D1(eob, evb)
+        Doovvaa = utils.D2(eoa, eva)
+        Doovvbb = utils.D2(eob, evb)
+        Doovvab = utils.D2u(eoa, eob, eva, evb)
+
+        # get HF energy
+        En = self.sys.const_energy()
+        E0 = zt_mp.ump0(eoa, eob) + En
+        E1 = self.sys.get_mp1()
+        Ehf = E0 + E1
+
+        # compute required memory
+        noa = eoa.shape[0]
+        nva = eva.shape[0]
+        nob = eob.shape[0]
+        nvb = evb.shape[0]
+        no = noa + nob
+        nv = nva + nvb
+        mem1e = no*no + 5*no*nv + nv*nv  # include memory for D1
+        mem2e = 6*no*no*nv*nv + nv*nv*nv*nv + 2*nv*nv*nv*no + \
+            2*nv*no*no*no + no*no*no*no  # include memory for D2
+        mem_mb = 2.0*(mem1e + mem2e)*8.0/1024.0/1024.0
+        logging.info('  CCSD will use %f mb' % mem_mb)
+
+        # get Fock matrix
+        Fa, Fb = self.sys.u_fock()
+        Fa.oo = Fa.oo - numpy.diag(eoa)  # subtract diagonal
+        Fa.vv = Fa.vv - numpy.diag(eva)  # subtract diagonal
+        Fb.oo = Fb.oo - numpy.diag(eob)  # subtract diagonal
+        Fb.vv = Fb.vv - numpy.diag(evb)  # subtract diagonal
+
+        # get ERIs
+        Ia, Ib, Iabab = self.sys.u_aint()
+
+        # TODO: Add CCD
+        if not self.singles:
+            raise Exception("UCCD is not implemented")
+        # get MP2 T-amplitudes
+        def divide(x, y):
+            y = y.copy()
+            mask = numpy.abs(y) < self.degcr
+            y[mask] = numpy.inf
+            y = 1 / y
+            if len(y.shape) == 2:
+                return einsum('ai,ia->ai', x, y)
+            elif len(y.shape) == 4:
+                return einsum('abij,ijab->abij', x, y)
+            else:
+                raise Exception()
+        T1aold = divide(Fa.vo, Dova)
+        T1bold = divide(Fb.vo, Dovb)
+        T2aaold = divide(Ia.vvoo, Doovvaa)
+        T2abold = divide(Iabab.vvoo, Doovvab)
+        T2bbold = divide(Ib.vvoo, Doovvbb)
+        T1olds = (T1aold, T1bold)
+        T2olds = (T2aaold, T2abold, T2bbold)
+        Emp2 = cc_energy.ump2_energy(
+            T1olds, T2olds, Fa.ov, Fb.ov, Ia.oovv, Ib.oovv, Iabab.oovv)
+
+        # start with custom guess if provided
+        if T1in is not None:
+            T1aold = T1in[0]
+            T1bold = T1in[1]
+        if T2in is not None:
+            T2aaold = T2in[0]
+            T2abold = T2in[1]
+            T2bbold = T2in[2]
+        T1olds = (T1aold, T1bold)
+        T2olds = (T2aaold, T2abold, T2bbold)
+        logging.info('MP2 Energy {:.10f}'.format(Emp2))
+
+        # run CC iterations
+        converged = False
+        max_iter = self.max_iter
+        i = 0
+        Eold = 1000000
+        alpha = self.damp
+        nl1 = numpy.sqrt(T1aold.size)
+        nl2 = numpy.sqrt(T2aaold.size)
+        while i < max_iter and not converged:
+            (T1a, T1b), (T2aa, T2ab, T2bb) = cc_equations.uccsd_stanton(Fa, Fb, Ia, Ib, Iabab, T1olds, T2olds)
+#            T1a = T1aold + self.dt * (-T1a + einsum('ai,ia->ai', T1aold, Dova))
+#            T1b = T1bold + self.dt * (-T1b + einsum('ai,ia->ai', T1bold, Dovb))
+#            T2aa = T2aaold + self.dt * (-T2aa + einsum('abij,ijab->abij', T2aaold, Doovvaa))
+#            T2ab = T2abold + self.dt * (-T2ab + einsum('abij,ijab->abij', T2abold, Doovvab))
+#            T2bb = T2bbold + self.dt * (-T2bb + einsum('abij,ijab->abij', T2bbold, Doovvbb))
+            # @@@@@@ setting deg. excitations to be zero
+            def set_zero(T, D):
+                if len(D.shape) == 2:
+                    D = D.T.copy()
+                    T[numpy.abs(D) < self.degcr] = 0
+                if len(D.shape) == 4:
+                    D = D.transpose([2,3,0,1]).copy()
+                    T[numpy.abs(D) < self.degcr] = 0
+                return T
+            #set_zero(T1a, Dova)
+            #set_zero(T1b, Dovb)
+            #set_zero(T2aa, Doovvaa)
+            #set_zero(T2ab, Doovvab)
+            #set_zero(T2bb, Doovvbb)
+            offset = (-T1a + einsum('ai,ia->ai', T1aold, Dova))
+            T1a = T1aold + self.dt * set_zero(offset, Dova)
+            offset = (-T1b + einsum('ai,ia->ai', T1bold, Dovb))
+            T1b = T1bold + self.dt * set_zero(offset, Dovb)
+            offset = (-T2aa + einsum('abij,ijab->abij', T2aaold, Doovvaa))
+            T2aa = T2aaold + self.dt * set_zero(offset, Doovvaa)
+            offset = (-T2ab + einsum('abij,ijab->abij', T2abold, Doovvab))
+            T2ab = T2abold + self.dt * set_zero(offset, Doovvab)
+            offset = (-T2bb + einsum('abij,ijab->abij', T2bbold, Doovvbb))
+            T2bb = T2bbold + self.dt * set_zero(offset, Doovvbb)
+            # @@@@@@
+            E = cc_energy.ucc_energy(
+                (T1a, T1b), (T2aa, T2ab, T2bb),
+                Fa.ov, Fb.ov, Ia.oovv, Ib.oovv, Iabab.oovv)
+            res1 = numpy.linalg.norm(T1olds[0] - T1a)/nl1
+            res1 += numpy.linalg.norm(T1olds[1] - T1b)/nl1
+            res2 = numpy.linalg.norm(T2olds[0] - T2aa)/nl2
+            res2 += numpy.linalg.norm(T2olds[1] - T2ab)/nl2
+            res2 += numpy.linalg.norm(T2olds[2] - T2bb)/nl2
+            T1a = alpha*T1olds[0] + (1.0 - alpha)*T1a
+            T1b = alpha*T1olds[1] + (1.0 - alpha)*T1b
+            T2aa = alpha*T2olds[0] + (1.0 - alpha)*T2aa
+            T2ab = alpha*T2olds[1] + (1.0 - alpha)*T2ab
+            T2bb = alpha*T2olds[2] + (1.0 - alpha)*T2bb
+            logging.info(' %2d  %.10f  %e' % (i + 1, E, res1+res2))
+            i = i + 1
+            if numpy.abs(E - Eold) < self.econv and res1+res2 < self.tconv:
+                converged = True
+            Eold = E
+            if res1+res2 < 10*self.tconv:
+                self.dt *= 10
+
+            T1olds = (T1a, T1b)
+            T2olds = (T2aa, T2ab, T2bb)
+            T1a = None
+            T1b = None
+            T2aa = None
+            T2ab = None
+            T2bb = None
+
+        # save and return
+        self.Ecor = Eold
+        self.Etot = Ehf + Eold
+        self.T1 = T1olds
+        self.T2 = T2olds
+        return (Eold + Ehf, Eold)
+
 
     def _ccsd_lambda(self):
         """Solve CCSD Lambda equations at zero temperature."""
@@ -668,7 +844,8 @@ class ccsd(object):
             "econv": self.econv,
             "tconv": self.tconv,
             "max_iter": self.max_iter,
-            "damp": self.damp}
+            "damp": self.damp,
+            "dt": self.dt}
         if self.rt_iter[0] == 'a' or T2in is not None:
             if self.rt_iter[0] != 'a':
                 logging.warning("Converngece scheme ({}) is being ignored.".format(self.rt_iter))

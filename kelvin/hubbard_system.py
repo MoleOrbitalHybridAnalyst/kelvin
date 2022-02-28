@@ -292,6 +292,10 @@ class HubbardSystem(System):
         Fa += numpy.einsum('pqrs,q,s->pr', Vab, fob, fob)
         Fb += numpy.einsum('pqrs,q,s->pr', Vb, fob, fob)
         Fb += numpy.einsum('pqrs,p,r->qs', Vab, foa, foa)
+        # @@@@@ use model's Fock since we may did MF smearinng and do not want to be destroyed here
+        Fa = numpy.diag(self.ea)
+        Fb = numpy.diag(self.eb)
+        # @@@@@
         Fooa = Fa[numpy.ix_(oidxa, oidxa)]
         Fova = Fa[numpy.ix_(oidxa, vidxa)]
         Fvoa = Fa[numpy.ix_(vidxa, oidxa)]

@@ -37,7 +37,7 @@ class ccsd(object):
     '''
     def __init__(self, sys, T=0.0, mu=0.0, iprint=0,
                  singles=True, econv=1e-8, tconv=None, max_iter=40,
-                 damp=0.0, athresh=0.0, dt=None):
+                 damp=0.0, athresh=0.0, dt=None, degcr = 1E-12):
 
         self.T = T
         self.mu = mu
@@ -51,6 +51,7 @@ class ccsd(object):
         self.damp = damp
         self.athresh = athresh
         self.dt = dt
+        self.degcr = degcr
         if not sys.verify(self.T, self.mu):
             raise Exception("Sytem temperature inconsistent with CC temp")
         self.beta = None
@@ -129,17 +130,17 @@ class ccsd(object):
             D2ab = utils.D2u(ea, eb, ea, eb)
             D2bb = utils.D2(eb, eb)
             # check degenerate orbitals
-            numpy.fill_diagonal(D1a, numpy.inf)
-            numpy.fill_diagonal(D1b, numpy.inf)
-            numpy.fill_diagonal(D2aa, numpy.inf)
-            numpy.fill_diagonal(D2ab, numpy.inf)
-            numpy.fill_diagonal(D2bb, numpy.inf)
-            ndeg = numpy.sum(numpy.abs(D1a) < 1E-15) \
-                 + numpy.sum(numpy.abs(D1b) < 1E-15)
-            if ndeg == 0:
-                if self.dt is not None:
-                    logging.info("Using imag. time form " +
-                    f"with dt = {self.dt} even no degeneracies found")
+#            numpy.fill_diagonal(D1a, numpy.inf)
+#            numpy.fill_diagonal(D1b, numpy.inf)
+#            numpy.fill_diagonal(D2aa, numpy.inf)
+#            numpy.fill_diagonal(D2ab, numpy.inf)
+#            numpy.fill_diagonal(D2bb, numpy.inf)
+#            ndeg = numpy.sum(numpy.abs(D1a) < self.degcr) \
+#                 + numpy.sum(numpy.abs(D1b) < self.degcr)
+#            if ndeg == 0:
+#                if self.dt is not None:
+#                    logging.info("Using imag. time form " +
+#                    f"with dt = {self.dt} even no degeneracies found")
 
             # get 0th and 1st order contributions
             En = self.sys.const_energy()
@@ -187,7 +188,7 @@ class ccsd(object):
                 T2abold = -Iabab.vvoo
                 T2bbold = -Ib.vvoo
                 def divide(x, y):
-                    mask = numpy.abs(y) > 1E-15
+                    mask = numpy.abs(y) > self.degcr
                     d = numpy.zeros_like(x)
                     d[mask] = x[mask] / y[mask]
                     return d
@@ -215,24 +216,47 @@ class ccsd(object):
                 numpy.fill_diagonal(D2ab, 0)
                 numpy.fill_diagonal(D2bb, 0)
             else:
-                D1a[numpy.abs(D1a) < 1E-15] = numpy.inf
-                D1b[numpy.abs(D1b) < 1E-15] = numpy.inf
-                D2aa[numpy.abs(D2aa) < 1E-15] = numpy.inf
-                D2ab[numpy.abs(D2ab) < 1E-15] = numpy.inf
-                D2bb[numpy.abs(D2bb) < 1E-15] = numpy.inf
+#                D1a[numpy.abs(D1a) < self.degcr] = numpy.inf
+#                D1b[numpy.abs(D1b) < self.degcr] = numpy.inf
+#                D2aa[numpy.abs(D2aa) < self.degcr] = numpy.inf
+#                D2ab[numpy.abs(D2ab) < self.degcr] = numpy.inf
+#                D2bb[numpy.abs(D2bb) < self.degcr] = numpy.inf
+                ha = numpy.max(ea[ea <= mu + self.degcr/2])
+                ga = sum(numpy.abs(ea - ha) < self.degcr)
+                hb = numpy.max(eb[eb <= mu + self.degcr/2])
+                gb = sum(numpy.abs(eb - hb) < self.degcr)
+                gap  = numpy.min(ea[ea > ha]) - ha
+                gap += numpy.min(eb[eb > hb]) - hb
+                gap /= 2
+                magic = (len(ea)+len(eb)) * gap / 3 / (ga+gb)
+                magic = 0  # set to be zero to become previous
+                print(len(ea), ga, gap, magic)
+                D1a[numpy.abs(D1a) < self.degcr] = magic
+                D1b[numpy.abs(D1b) < self.degcr] = magic
+                D2aa[numpy.abs(D2aa) < self.degcr] = magic 
+                D2ab[numpy.abs(D2ab) < self.degcr] = magic 
+                D2bb[numpy.abs(D2bb) < self.degcr] = magic 
 
             # @@@@@ use zeros as initials
-            T1aold = numpy.zeros_like(T1aold)
-            T1bold = numpy.zeros_like(T1bold)
-            T2aaold = numpy.zeros_like(T2aaold)
-            T2abold = numpy.zeros_like(T2abold)
-            T2bbold = numpy.zeros_like(T2bbold)
+#            T1aold = numpy.zeros_like(T1aold)
+#            T1bold = numpy.zeros_like(T1bold)
+#            T2aaold = numpy.zeros_like(T2aaold)
+#            T2abold = numpy.zeros_like(T2abold)
+#            T2bbold = numpy.zeros_like(T2bbold)
+            # @@@@ saving for checking
+            self.Fa = Fa
+            self.Fb = Fb
+            self.Ia = Ia
+            self.Ib = Ib
+            self.Iabab = Iabab
+            self.T1in = [T1aold, T1bold]
+            self.T2in = [T2aaold, T2abold, T2bbold]
 
             # run CC iterations
             Eccn, T1, T2 = cc_utils.zt_ucc_iter(
                 method, T1aold, T1bold, T2aaold, T2abold, T2bbold,
                 Fa, Fb, Ia, Ib, Iabab, D1a, D1b, D2aa, D2ab, D2bb,
-                self.iprint, conv_options)
+                self.iprint, conv_options, degcr=self.degcr)
         else:
             pass
 

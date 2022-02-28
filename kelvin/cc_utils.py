@@ -86,7 +86,7 @@ def form_new_ampl_u(method, Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2ab
     return T1out, T2out
 
 def zt_form_new_ampl_u(method, Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold, T2bbold,
-        D1a, D1b, D2aa, D2ab, D2bb, dt=None):
+        D1a, D1b, D2aa, D2ab, D2bb, dt=None, degcr=1E-12):
     """Form new amplitudes.
 
     Arguments:
@@ -101,7 +101,7 @@ def zt_form_new_ampl_u(method, Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T
     if method == "CCSD":
         T1out, T2out = ft_cc_equations.zt_uccsd(
             Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold, T2bbold,
-            D1a, D1b, D2aa, D2ab, D2bb, dt)
+            D1a, D1b, D2aa, D2ab, D2bb, dt, degcr)
     elif method == "CCD":
         raise NotImplementedError()
     elif method == "LCCSD":
@@ -346,7 +346,7 @@ def ft_ucc_iter(method, T1aold, T1bold, T2aaold, T2abold, T2bbold, Fa, Fb, Ia, I
 
 
 def zt_ucc_iter(method, T1aold, T1bold, T2aaold, T2abold, T2bbold, Fa, Fb, Ia, Ib, Iabab,
-        D1a, D1b, D2aa, D2ab, D2bb, iprint, conv_options):
+        D1a, D1b, D2aa, D2ab, D2bb, iprint, conv_options, degcr=1E-12):
     """Form new amplitudes.
 
     Arguments:
@@ -369,10 +369,25 @@ def zt_ucc_iter(method, T1aold, T1bold, T2aaold, T2abold, T2bbold, Fa, Fb, Ia, I
     dt = conv_options["dt"]
     i = 0
     Eold = 888888888.888888888
+
+    def watch(data, D, nwatch):
+        ags = numpy.argsort(numpy.abs(D).flatten())
+        result = list()
+        for indx in ags:
+            indx = numpy.unravel_index(indx, data.shape)
+            d = D[indx]
+            t = data[indx]
+            if numpy.abs(d) > degcr and numpy.abs(t) > degcr:
+                result.append([t, d, indx])
+        return result[:nwatch]
+    triads = watch(T2abold, D2ab, 10)
+    for p in triads:
+        print(p[0], p[1], p[2])
+
     while i < max_iter and not converged:
         T1out, T2out = zt_form_new_ampl_u(
             method, Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold,
-            T2abold, T2bbold, D1a, D1b, D2aa, D2ab, D2bb, dt=dt)
+            T2abold, T2bbold, D1a, D1b, D2aa, D2ab, D2bb, dt=dt, degcr=degcr)
 
         nl1 = numpy.linalg.norm(T1aold) + 0.1
         nl1 += numpy.linalg.norm(T1bold)
@@ -407,18 +422,31 @@ def zt_ucc_iter(method, T1aold, T1bold, T2aaold, T2abold, T2bbold, Fa, Fb, Ia, I
             converged = True
         Eold = E
 
+        # @@@@@@@@@@@@@
         # monitor large T1 T2 amplitudes
-        def watch(data, nwatch):
-            ags = numpy.argsort(-numpy.abs(data.flatten()))
+#        def watch(data, nwatch):
+#            ags = numpy.argsort(-numpy.abs(data.flatten()))
+#            result = list()
+#            for indx in ags[:nwatch]:
+#                indx = numpy.unravel_index(indx, data.shape)
+#                result.append([data[indx], indx])
+#            return result
+#        pairs = watch(T2abold, 5)
+#        for p in pairs:
+#            print(p[0], p[1])
+        def watch(data, D, nwatch):
+            ags = numpy.argsort(numpy.abs(D).flatten())
             result = list()
-            for indx in ags[:nwatch]:
+            for indx in ags:
                 indx = numpy.unravel_index(indx, data.shape)
-                result.append([data[indx], indx])
-            return result
-        pairs = watch(T2abold, 5)
-        for p in pairs:
-            print(p[0], p[1])
-        print("T2ab[2,5,0,0]:", T2abold[2,5,0,0])
+                d = D[indx]
+                t = data[indx]
+                if numpy.abs(d) > degcr and numpy.abs(t) > degcr:
+                    result.append([t, d, indx])
+            return result[:nwatch]
+        triads = watch(T2abold, D2ab, 10)
+        for p in triads:
+            print(p[0], p[1], p[2])
 
         # early break when res is too large
         if res1+res2 > 1E3:

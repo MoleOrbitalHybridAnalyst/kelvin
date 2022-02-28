@@ -164,7 +164,7 @@ def uccsd_stanton(Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold,
     return (T1a, T1b), (T2aa, T2ab, T2bb)
 
 
-def zt_uccsd(Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold, T2bbold, D1a, D1b, D2aa, D2ab, D2bb, dt=None):
+def zt_uccsd(Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold, T2bbold, D1a, D1b, D2aa, D2ab, D2bb, dt=None, degcr=1E-12):
     """CCSD at single time point
     """
     nva, noa = Fa.vo.shape
@@ -239,16 +239,11 @@ def zt_uccsd(Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold, T2bbold, D
         T2bb = T2bbold - dt * (-T2bb + D2bb * T2bbold)
 
 
-#    numpy.fill_diagonal(T1a, 0)
-#    numpy.fill_diagonal(T1b, 0)
-#    numpy.fill_diagonal(T2aa, 0)
-#    numpy.fill_diagonal(T2ab, 0)
-#    numpy.fill_diagonal(T2bb, 0)
-    T1a[numpy.abs(D1a) < 1E-15] = 0
-    T1b[numpy.abs(D1b) < 1E-15] = 0
-    T2aa[numpy.abs(D2aa) < 1E-15] = 0
-    T2ab[numpy.abs(D2ab) < 1E-15] = 0
-    T2bb[numpy.abs(D2bb) < 1E-15] = 0
+    T1a[numpy.abs(D1a) < degcr] = 0
+    T1b[numpy.abs(D1b) < degcr] = 0
+    T2aa[numpy.abs(D2aa) < degcr] = 0
+    T2ab[numpy.abs(D2ab) < degcr] = 0
+    T2bb[numpy.abs(D2bb) < degcr] = 0
 
     return (T1a, T1b), (T2aa, T2ab, T2bb)
 
