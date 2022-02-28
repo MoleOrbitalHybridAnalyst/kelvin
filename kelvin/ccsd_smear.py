@@ -228,8 +228,7 @@ class ccsd(object):
                 gap  = numpy.min(ea[ea > ha]) - ha
                 gap += numpy.min(eb[eb > hb]) - hb
                 gap /= 2
-                magic = (len(ea)+len(eb)) * gap / 3 / (ga+gb)
-                magic = 0  # set to be zero to become previous
+                magic = -(len(ea)+len(eb)) * gap / 3 / (ga+gb)
                 print(len(ea), ga, gap, magic)
                 D1a[numpy.abs(D1a) < self.degcr] = magic
                 D1b[numpy.abs(D1b) < self.degcr] = magic
