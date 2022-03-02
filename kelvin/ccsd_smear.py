@@ -197,6 +197,25 @@ class ccsd(object):
                 #T2aaold = T2aaold / D2aa
                 #T2abold = T2abold / D2ab
                 #T2bbold = T2bbold / D2bb
+
+                # @@@@@@@
+#                ha = numpy.max(ea[ea <= mu + self.degcr/2])
+#                ga = sum(numpy.abs(ea - ha) < self.degcr)
+#                hb = numpy.max(eb[eb <= mu + self.degcr/2])
+#                gb = sum(numpy.abs(eb - hb) < self.degcr)
+##                gap  = numpy.min(ea[ea > ha]) - ha
+##                gap += numpy.min(eb[eb > hb]) - hb
+##                gap /= 2
+#                gap = (2*self.sys.mu - ha - hb) / 2
+#                magic = (len(ea)+len(eb)) * gap / 3 / (ga+gb) 
+#                print(len(ea), ga, gap, magic)
+#                D1a[numpy.abs(D1a) < self.degcr] = magic
+#                D1b[numpy.abs(D1b) < self.degcr] = magic
+#                D2aa[numpy.abs(D2aa) < self.degcr] = magic 
+#                D2ab[numpy.abs(D2ab) < self.degcr] = magic 
+#                D2bb[numpy.abs(D2bb) < self.degcr] = magic 
+                # @@@@@@@
+
                 T1aold = divide(T1aold, D1a)
                 T1bold = divide(T1bold, D1b)
                 T2aaold = divide(T2aaold, D2aa)
@@ -228,7 +247,8 @@ class ccsd(object):
                 gap  = numpy.min(ea[ea > ha]) - ha
                 gap += numpy.min(eb[eb > hb]) - hb
                 gap /= 2
-                magic = -(len(ea)+len(eb)) * gap / 3 / (ga+gb)
+                #magic = (len(ea)+len(eb)) * gap / 3 / (ga+gb) / 2
+                magic = gap / 3 
                 print(len(ea), ga, gap, magic)
                 D1a[numpy.abs(D1a) < self.degcr] = magic
                 D1b[numpy.abs(D1b) < self.degcr] = magic
