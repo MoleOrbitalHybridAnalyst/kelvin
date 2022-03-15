@@ -239,11 +239,12 @@ def zt_uccsd(Fa, Fb, Ia, Ib, Iabab, T1aold, T1bold, T2aaold, T2abold, T2bbold, D
         T2bb = T2bbold - dt * (-T2bb + D2bb * T2bbold)
 
 
-#    T1a[numpy.abs(D1a) < degcr] = 0
-#    T1b[numpy.abs(D1b) < degcr] = 0
-#    T2aa[numpy.abs(D2aa) < degcr] = 0
-#    T2ab[numpy.abs(D2ab) < degcr] = 0
-#    T2bb[numpy.abs(D2bb) < degcr] = 0
+    # set degerate levels to be zero
+    T1a[numpy.abs(D1a) < degcr] = 0
+    T1b[numpy.abs(D1b) < degcr] = 0
+    T2aa[numpy.abs(D2aa) < degcr] = 0
+    T2ab[numpy.abs(D2ab) < degcr] = 0
+    T2bb[numpy.abs(D2bb) < degcr] = 0
 
     return (T1a, T1b), (T2aa, T2ab, T2bb)
 

@@ -199,21 +199,33 @@ class ccsd(object):
                 #T2bbold = T2bbold / D2bb
 
                 # @@@@@@@
-#                ha = numpy.max(ea[ea <= mu + self.degcr/2])
-#                ga = sum(numpy.abs(ea - ha) < self.degcr)
-#                hb = numpy.max(eb[eb <= mu + self.degcr/2])
-#                gb = sum(numpy.abs(eb - hb) < self.degcr)
-##                gap  = numpy.min(ea[ea > ha]) - ha
-##                gap += numpy.min(eb[eb > hb]) - hb
-##                gap /= 2
-#                gap = (2*self.sys.mu - ha - hb) / 2
-#                magic = (len(ea)+len(eb)) * gap / 3 / (ga+gb) 
-#                print(len(ea), ga, gap, magic)
-#                D1a[numpy.abs(D1a) < self.degcr] = magic
-#                D1b[numpy.abs(D1b) < self.degcr] = magic
-#                D2aa[numpy.abs(D2aa) < self.degcr] = magic 
-#                D2ab[numpy.abs(D2ab) < self.degcr] = magic 
-#                D2bb[numpy.abs(D2bb) < self.degcr] = magic 
+#                if self.dt is None:
+                if True:
+                    ha = numpy.max(ea[ea <= mu + self.degcr/2])
+                    ga = sum(numpy.abs(ea - ha) < self.degcr)
+                    hb = numpy.max(eb[eb <= mu + self.degcr/2])
+                    gb = sum(numpy.abs(eb - hb) < self.degcr)
+                    gap  = numpy.min(ea[ea > ha]) - ha
+                    gap += numpy.min(eb[eb > hb]) - hb
+                    gap /= 2
+                    magic = (len(ea)+len(eb)) * gap / 3 / (ga+gb) / 2
+    #                magic = gap / 3
+                    print(len(ea), ga, gap, magic)
+                    D1a[numpy.abs(D1a) < self.degcr] = magic
+                    D1b[numpy.abs(D1b) < self.degcr] = magic
+                    D2aa[numpy.abs(D2aa) < self.degcr] = magic 
+                    D2ab[numpy.abs(D2ab) < self.degcr] = magic 
+                    D2bb[numpy.abs(D2bb) < self.degcr] = magic 
+#                    print(magic * D1a.size /  numpy.sum(numpy.abs(D1a) < self.degcr)) 
+#                    print(magic * D1b.size /  numpy.sum(numpy.abs(D1b) < self.degcr))
+#                    print(magic * D2aa.size / numpy.sum(numpy.abs(D2aa) < self.degcr))
+#                    print(magic * D2ab.size / numpy.sum(numpy.abs(D2ab) < self.degcr))
+#                    print(magic * D2bb.size / numpy.sum(numpy.abs(D2bb) < self.degcr))
+#                    D1a[numpy.abs(D1a) < self.degcr] = magic * D1a.size / numpy.sum(numpy.abs(D1a) < self.degcr)
+#                    D1b[numpy.abs(D1b) < self.degcr] = magic * D1b.size / numpy.sum(numpy.abs(D1b) < self.degcr)
+#                    D2aa[numpy.abs(D2aa) < self.degcr] = magic * D2aa.size / numpy.sum(numpy.abs(D2aa) < self.degcr)
+#                    D2ab[numpy.abs(D2ab) < self.degcr] = magic * D2ab.size / numpy.sum(numpy.abs(D2ab) < self.degcr)
+#                    D2bb[numpy.abs(D2bb) < self.degcr] = magic * D2bb.size / numpy.sum(numpy.abs(D2bb) < self.degcr)
                 # @@@@@@@
 
                 T1aold = divide(T1aold, D1a)
@@ -228,33 +240,44 @@ class ccsd(object):
                 Ia.oovv, Ib.oovv, Iabab.oovv, Qterm=False)
             logging.info('MP2 Energy: {:.10f}'.format(E2))
 
-            if self.dt is not None:
-                numpy.fill_diagonal(D1a, 0)
-                numpy.fill_diagonal(D1b, 0)
-                numpy.fill_diagonal(D2aa, 0)
-                numpy.fill_diagonal(D2ab, 0)
-                numpy.fill_diagonal(D2bb, 0)
-            else:
-#                D1a[numpy.abs(D1a) < self.degcr] = numpy.inf
-#                D1b[numpy.abs(D1b) < self.degcr] = numpy.inf
-#                D2aa[numpy.abs(D2aa) < self.degcr] = numpy.inf
-#                D2ab[numpy.abs(D2ab) < self.degcr] = numpy.inf
-#                D2bb[numpy.abs(D2bb) < self.degcr] = numpy.inf
-                ha = numpy.max(ea[ea <= mu + self.degcr/2])
-                ga = sum(numpy.abs(ea - ha) < self.degcr)
-                hb = numpy.max(eb[eb <= mu + self.degcr/2])
-                gb = sum(numpy.abs(eb - hb) < self.degcr)
-                gap  = numpy.min(ea[ea > ha]) - ha
-                gap += numpy.min(eb[eb > hb]) - hb
-                gap /= 2
-                #magic = (len(ea)+len(eb)) * gap / 3 / (ga+gb) / 2
-                magic = gap / 3 
-                print(len(ea), ga, gap, magic)
-                D1a[numpy.abs(D1a) < self.degcr] = magic
-                D1b[numpy.abs(D1b) < self.degcr] = magic
-                D2aa[numpy.abs(D2aa) < self.degcr] = magic 
-                D2ab[numpy.abs(D2ab) < self.degcr] = magic 
-                D2bb[numpy.abs(D2bb) < self.degcr] = magic 
+#            if self.dt is not None:
+#                numpy.fill_diagonal(D1a, 0)
+#                numpy.fill_diagonal(D1b, 0)
+#                numpy.fill_diagonal(D2aa, 0)
+#                numpy.fill_diagonal(D2ab, 0)
+#                numpy.fill_diagonal(D2bb, 0)
+#            else:
+##                D1a[numpy.abs(D1a) < self.degcr] = numpy.inf
+##                D1b[numpy.abs(D1b) < self.degcr] = numpy.inf
+##                D2aa[numpy.abs(D2aa) < self.degcr] = numpy.inf
+##                D2ab[numpy.abs(D2ab) < self.degcr] = numpy.inf
+##                D2bb[numpy.abs(D2bb) < self.degcr] = numpy.inf
+#                ha = numpy.max(ea[ea <= mu + self.degcr/2])
+#                ga = sum(numpy.abs(ea - ha) < self.degcr)
+#                hb = numpy.max(eb[eb <= mu + self.degcr/2])
+#                gb = sum(numpy.abs(eb - hb) < self.degcr)
+#                gap  = numpy.min(ea[ea > ha]) - ha
+#                gap += numpy.min(eb[eb > hb]) - hb
+#                gap /= 2
+#                #magic = (len(ea)+len(eb)) * gap / 3 / (ga+gb) / 2
+#                magic = gap / 3 
+#                #magic = numpy.inf
+#                print(len(ea), ga, gap, magic)
+#                print(numpy.min(numpy.abs(D1a)))
+#                print(numpy.min(numpy.abs(D1b)))
+#                print(numpy.min(numpy.abs(D2aa)))
+#                print(numpy.min(numpy.abs(D2ab)))
+#                print(numpy.min(numpy.abs(D2bb)))
+##                print(magic * D1a.size /  numpy.sum(numpy.abs(D1a) < self.degcr)) 
+##                print(magic * D1b.size /  numpy.sum(numpy.abs(D1b) < self.degcr))
+##                print(magic * D2aa.size / numpy.sum(numpy.abs(D2aa) < self.degcr))
+##                print(magic * D2ab.size / numpy.sum(numpy.abs(D2ab) < self.degcr))
+##                print(magic * D2bb.size / numpy.sum(numpy.abs(D2bb) < self.degcr))
+##                D1a[numpy.abs(D1a) < self.degcr] = magic * D1a.size / numpy.sum(numpy.abs(D1a) < self.degcr)
+##                D1b[numpy.abs(D1b) < self.degcr] = magic * D1b.size / numpy.sum(numpy.abs(D1b) < self.degcr)
+##                D2aa[numpy.abs(D2aa) < self.degcr] = magic * D2aa.size / numpy.sum(numpy.abs(D2aa) < self.degcr)
+##                D2ab[numpy.abs(D2ab) < self.degcr] = magic * D2ab.size / numpy.sum(numpy.abs(D2ab) < self.degcr)
+##                D2bb[numpy.abs(D2bb) < self.degcr] = magic * D2bb.size / numpy.sum(numpy.abs(D2bb) < self.degcr)
 
             # @@@@@ use zeros as initials
 #            T1aold = numpy.zeros_like(T1aold)
