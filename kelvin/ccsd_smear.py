@@ -88,12 +88,12 @@ class ccsd(object):
         # ON- and OE-relaxation contribution to 1-rdm
         self.r1rdm = None
 
-    def run(self, T1=None, T2=None):
+    def run(self, T1=None, T2=None, D1scale=1.0, D2scale=1.0):
         if self.finite_T:
             logging.info('Running CCSD at an electronic temperature of %f K'
                 % ft_utils.HtoK(self.T))
             if self.sys.has_u():
-                return self._ft_uccsd(T1in=T1, T2in=T2)
+                return self._ft_uccsd(T1in=T1, T2in=T2, D1scale=D1scale, D2scale=D2scale)
             else:
                 return self._ft_ccsd(T1in=T1, T2in=T2)
         else:
@@ -111,7 +111,7 @@ class ccsd(object):
     def _ft_ccsd(self, T1in=None, T2in=None):
         raise NotImplementedError()
 
-    def _ft_uccsd(self, T1in=None, T2in=None):
+    def _ft_uccsd(self, T1in=None, T2in=None, D1scale=1.0, D2scale=1.0):
         '''
         CCSD with FT smearing
         '''
@@ -201,31 +201,24 @@ class ccsd(object):
                 # @@@@@@@
 #                if self.dt is None:
                 if True:
-                    ha = numpy.max(ea[ea <= mu + self.degcr/2])
-                    ga = sum(numpy.abs(ea - ha) < self.degcr)
-                    hb = numpy.max(eb[eb <= mu + self.degcr/2])
-                    gb = sum(numpy.abs(eb - hb) < self.degcr)
-                    gap  = numpy.min(ea[ea > ha]) - ha
-                    gap += numpy.min(eb[eb > hb]) - hb
+                    fd = ft_utils.ff(beta, ea, mu)
+                    ha = max(ea[fd > self.degcr])
+                    fd = ft_utils.ff(beta, ea, mu)
+                    hb = max(ea[fd > self.degcr])
+                    gap  = ha - numpy.max(ea[ea < ha - self.degcr])
+                    gap += hb - numpy.max(eb[eb < hb - self.degcr])
                     gap /= 2
-                    magic = (len(ea)+len(eb)) * gap / 3 / (ga+gb) / 2
-    #                magic = gap / 3
-                    print(len(ea), ga, gap, magic)
-                    D1a[numpy.abs(D1a) < self.degcr] = magic
-                    D1b[numpy.abs(D1b) < self.degcr] = magic
-                    D2aa[numpy.abs(D2aa) < self.degcr] = magic 
-                    D2ab[numpy.abs(D2ab) < self.degcr] = magic 
-                    D2bb[numpy.abs(D2bb) < self.degcr] = magic 
-#                    print(magic * D1a.size /  numpy.sum(numpy.abs(D1a) < self.degcr)) 
-#                    print(magic * D1b.size /  numpy.sum(numpy.abs(D1b) < self.degcr))
-#                    print(magic * D2aa.size / numpy.sum(numpy.abs(D2aa) < self.degcr))
-#                    print(magic * D2ab.size / numpy.sum(numpy.abs(D2ab) < self.degcr))
-#                    print(magic * D2bb.size / numpy.sum(numpy.abs(D2bb) < self.degcr))
-#                    D1a[numpy.abs(D1a) < self.degcr] = magic * D1a.size / numpy.sum(numpy.abs(D1a) < self.degcr)
-#                    D1b[numpy.abs(D1b) < self.degcr] = magic * D1b.size / numpy.sum(numpy.abs(D1b) < self.degcr)
-#                    D2aa[numpy.abs(D2aa) < self.degcr] = magic * D2aa.size / numpy.sum(numpy.abs(D2aa) < self.degcr)
-#                    D2ab[numpy.abs(D2ab) < self.degcr] = magic * D2ab.size / numpy.sum(numpy.abs(D2ab) < self.degcr)
-#                    D2bb[numpy.abs(D2bb) < self.degcr] = magic * D2bb.size / numpy.sum(numpy.abs(D2bb) < self.degcr)
+                    magic = gap
+                    print(f"ha = {ha} hb = {hb}")
+                    print(f"gap = {gap} D1 = {magic*D1scale} D2 = {magic*D2scale}")
+
+                    maska = numpy.where(numpy.abs(ea - ha) < self.degcr)[0]
+                    maskb = numpy.where(numpy.abs(eb - hb) < self.degcr)[0]
+                    D1a[numpy.ix_(maska,maska)] = magic * D1scale
+                    D1b[numpy.ix_(maskb,maskb)] = magic * D1scale
+                    D2aa[numpy.ix_(maska,maska,maska,maska)] = magic * D2scale 
+                    D2ab[numpy.ix_(maska,maskb,maska,maskb)] = magic * D2scale
+                    D2bb[numpy.ix_(maskb,maskb,maskb,maskb)] = magic * D2scale
                 # @@@@@@@
 
                 T1aold = divide(T1aold, D1a)
