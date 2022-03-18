@@ -88,12 +88,12 @@ class ccsd(object):
         # ON- and OE-relaxation contribution to 1-rdm
         self.r1rdm = None
 
-    def run(self, T1=None, T2=None, D1scale=1.0, D2scale=1.0):
+    def run(self, T1=None, T2=None, D1scale=1.0, D2scale=1.0, ewindow=None, adapt=False):
         if self.finite_T:
             logging.info('Running CCSD at an electronic temperature of %f K'
                 % ft_utils.HtoK(self.T))
             if self.sys.has_u():
-                return self._ft_uccsd(T1in=T1, T2in=T2, D1scale=D1scale, D2scale=D2scale)
+                return self._ft_uccsd(T1in=T1, T2in=T2, D1scale=D1scale, D2scale=D2scale, ewindow=ewindow, adapt=adapt)
             else:
                 return self._ft_ccsd(T1in=T1, T2in=T2)
         else:
@@ -111,7 +111,7 @@ class ccsd(object):
     def _ft_ccsd(self, T1in=None, T2in=None):
         raise NotImplementedError()
 
-    def _ft_uccsd(self, T1in=None, T2in=None, D1scale=1.0, D2scale=1.0):
+    def _ft_uccsd(self, T1in=None, T2in=None, D1scale=1.0, D2scale=1.0, ewindow=None, adapt=False):
         '''
         CCSD with FT smearing
         '''
@@ -199,8 +199,7 @@ class ccsd(object):
                 #T2bbold = T2bbold / D2bb
 
                 # @@@@@@@
-#                if self.dt is None:
-                if True:
+                if ewindow is None:
                     fd = ft_utils.ff(beta, ea, mu)
                     ha = max(ea[fd > self.degcr])
                     fd = ft_utils.ff(beta, ea, mu)
@@ -211,6 +210,26 @@ class ccsd(object):
                     magic = gap
                     print(f"ha = {ha} hb = {hb}")
                     print(f"gap = {gap} D1 = {magic*D1scale} D2 = {magic*D2scale}")
+
+                    maska = numpy.where(numpy.abs(ea - ha) < self.degcr)[0]
+                    maskb = numpy.where(numpy.abs(eb - hb) < self.degcr)[0]
+                    D1a[numpy.ix_(maska,maska)] = magic * D1scale
+                    D1b[numpy.ix_(maskb,maskb)] = magic * D1scale
+                    D2aa[numpy.ix_(maska,maska,maska,maska)] = magic * D2scale 
+                    D2ab[numpy.ix_(maska,maskb,maska,maskb)] = magic * D2scale
+                    D2bb[numpy.ix_(maskb,maskb,maskb,maskb)] = magic * D2scale
+                else:
+                    fd = ft_utils.ff(beta, ea, mu)
+                    ha = max(ea[fd > self.degcr])
+                    fd = ft_utils.ff(beta, ea, mu)
+                    hb = max(ea[fd > self.degcr])
+                    if adapt:
+                        ewindow = ewindow / (len(ea) + len(eb))
+                    nstates =  sum(numpy.abs(ea - ha) < ewindow)
+                    nstates += sum(numpy.abs(eb - hb) < ewindow)
+                    magic = ewindow / nstates
+                    print(f"ha = {ha} hb = {hb}")
+                    print(f"D1 = {magic*D1scale} D2 = {magic*D2scale}")
 
                     maska = numpy.where(numpy.abs(ea - ha) < self.degcr)[0]
                     maskb = numpy.where(numpy.abs(eb - hb) < self.degcr)[0]
