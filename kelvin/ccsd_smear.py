@@ -215,9 +215,27 @@ class ccsd(object):
                     maskb = numpy.where(numpy.abs(eb - hb) < self.degcr)[0]
                     D1a[numpy.ix_(maska,maska)] = magic * D1scale
                     D1b[numpy.ix_(maskb,maskb)] = magic * D1scale
-                    D2aa[numpy.ix_(maska,maska,maska,maska)] = magic * D2scale 
-                    D2ab[numpy.ix_(maska,maskb,maska,maskb)] = magic * D2scale
-                    D2bb[numpy.ix_(maskb,maskb,maskb,maskb)] = magic * D2scale
+                    for i in maska:
+                        for j in maska:
+                            for a in maska:
+                                for b in maska:
+                                    if i == j or a == b:
+                                        continue
+                                    D2aa[a,b,i,j] = magic * D2scale
+                    for i in maska:
+                        for j in maskb:
+                            for a in maska:
+                                for b in maskb:
+                                    if i == j or a == b:
+                                        continue
+                                    D2ab[a,b,i,j] = magic * D2scale
+                    for i in maskb:
+                        for j in maskb:
+                            for a in maskb:
+                                for b in maskb:
+                                    if i == j or a == b:
+                                        continue
+                                    D2bb[a,b,i,j] = magic * D2scale
                 else:
                     fd = ft_utils.ff(beta, ea, mu)
                     ha = max(ea[fd > self.degcr])
@@ -235,9 +253,27 @@ class ccsd(object):
                     maskb = numpy.where(numpy.abs(eb - hb) < self.degcr)[0]
                     D1a[numpy.ix_(maska,maska)] = magic * D1scale
                     D1b[numpy.ix_(maskb,maskb)] = magic * D1scale
-                    D2aa[numpy.ix_(maska,maska,maska,maska)] = magic * D2scale 
-                    D2ab[numpy.ix_(maska,maskb,maska,maskb)] = magic * D2scale
-                    D2bb[numpy.ix_(maskb,maskb,maskb,maskb)] = magic * D2scale
+                    for i in maska:
+                        for j in maska:
+                            for a in maska:
+                                for b in maska:
+                                    if i == j or a == b:
+                                        continue
+                                    D2aa[a,b,i,j] = magic * D2scale
+                    for i in maska:
+                        for j in maskb:
+                            for a in maska:
+                                for b in maskb:
+                                    if i == j or a == b:
+                                        continue
+                                    D2ab[a,b,i,j] = magic * D2scale
+                    for i in maskb:
+                        for j in maskb:
+                            for a in maskb:
+                                for b in maskb:
+                                    if i == j or a == b:
+                                        continue
+                                    D2bb[a,b,i,j] = magic * D2scale
                 # @@@@@@@
 
                 T1aold = divide(T1aold, D1a)
