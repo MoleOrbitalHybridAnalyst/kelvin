@@ -88,12 +88,12 @@ class ccsd(object):
         # ON- and OE-relaxation contribution to 1-rdm
         self.r1rdm = None
 
-    def run(self, T1=None, T2=None, D1scale=1.0, D2scale=1.0, ewindow=None, adapt=False):
+    def run(self, T1=None, T2=None, D1corr=None, D2corr=None):
         if self.finite_T:
             logging.info('Running CCSD at an electronic temperature of %f K'
                 % ft_utils.HtoK(self.T))
             if self.sys.has_u():
-                return self._ft_uccsd(T1in=T1, T2in=T2, D1scale=D1scale, D2scale=D2scale, ewindow=ewindow, adapt=adapt)
+                return self._ft_uccsd(T1in=T1, T2in=T2, D1corr=D1corr, D2corr=D2corr)
             else:
                 return self._ft_ccsd(T1in=T1, T2in=T2)
         else:
@@ -111,7 +111,7 @@ class ccsd(object):
     def _ft_ccsd(self, T1in=None, T2in=None):
         raise NotImplementedError()
 
-    def _ft_uccsd(self, T1in=None, T2in=None, D1scale=1.0, D2scale=1.0, ewindow=None, adapt=False):
+    def _ft_uccsd(self, T1in=None, T2in=None, D1corr=None, D2corr=None):
         '''
         CCSD with FT smearing
         '''
@@ -129,18 +129,6 @@ class ccsd(object):
             D2aa = utils.D2(ea, ea)
             D2ab = utils.D2u(ea, eb, ea, eb)
             D2bb = utils.D2(eb, eb)
-            # check degenerate orbitals
-#            numpy.fill_diagonal(D1a, numpy.inf)
-#            numpy.fill_diagonal(D1b, numpy.inf)
-#            numpy.fill_diagonal(D2aa, numpy.inf)
-#            numpy.fill_diagonal(D2ab, numpy.inf)
-#            numpy.fill_diagonal(D2bb, numpy.inf)
-#            ndeg = numpy.sum(numpy.abs(D1a) < self.degcr) \
-#                 + numpy.sum(numpy.abs(D1b) < self.degcr)
-#            if ndeg == 0:
-#                if self.dt is not None:
-#                    logging.info("Using imag. time form " +
-#                    f"with dt = {self.dt} even no degeneracies found")
 
             # get 0th and 1st order contributions
             En = self.sys.const_energy()
@@ -199,83 +187,24 @@ class ccsd(object):
                 #T2bbold = T2bbold / D2bb
 
                 # @@@@@@@
-                if ewindow is None:
-                    fd = ft_utils.ff(beta, ea, mu)
-                    ha = max(ea[fd > self.degcr])
-                    fd = ft_utils.ff(beta, ea, mu)
-                    hb = max(ea[fd > self.degcr])
-                    gap  = ha - numpy.max(ea[ea < ha - self.degcr])
-                    gap += hb - numpy.max(eb[eb < hb - self.degcr])
-                    gap /= 2
-                    magic = gap
-                    print(f"ha = {ha} hb = {hb}")
-                    print(f"gap = {gap} D1 = {magic*D1scale} D2 = {magic*D2scale}")
-
-                    maska = numpy.where(numpy.abs(ea - ha) < self.degcr)[0]
-                    maskb = numpy.where(numpy.abs(eb - hb) < self.degcr)[0]
-                    D1a[numpy.ix_(maska,maska)] = magic * D1scale
-                    D1b[numpy.ix_(maskb,maskb)] = magic * D1scale
-                    for i in maska:
-                        for j in maska:
-                            for a in maska:
-                                for b in maska:
-                                    if i == j or a == b:
-                                        continue
-                                    D2aa[a,b,i,j] = magic * D2scale
-                    for i in maska:
-                        for j in maskb:
-                            for a in maska:
-                                for b in maskb:
-                                    if i == j or a == b:
-                                        continue
-                                    D2ab[a,b,i,j] = magic * D2scale
-                    for i in maskb:
-                        for j in maskb:
-                            for a in maskb:
-                                for b in maskb:
-                                    if i == j or a == b:
-                                        continue
-                                    D2bb[a,b,i,j] = magic * D2scale
-                else:
-                    fd = ft_utils.ff(beta, ea, mu)
-                    ha = max(ea[fd > self.degcr])
-                    fd = ft_utils.ff(beta, ea, mu)
-                    hb = max(ea[fd > self.degcr])
-                    if adapt:
-                        ewindow = ewindow / (len(ea) + len(eb))
-                    nstates =  sum(numpy.abs(ea - ha) < ewindow)
-                    nstates += sum(numpy.abs(eb - hb) < ewindow)
-                    magic = ewindow / nstates
-                    print(f"ha = {ha} hb = {hb}")
-                    print(f"D1 = {magic*D1scale} D2 = {magic*D2scale}")
-
-                    maska = numpy.where(numpy.abs(ea - ha) < self.degcr)[0]
-                    maskb = numpy.where(numpy.abs(eb - hb) < self.degcr)[0]
-                    D1a[numpy.ix_(maska,maska)] = magic * D1scale
-                    D1b[numpy.ix_(maskb,maskb)] = magic * D1scale
-                    for i in maska:
-                        for j in maska:
-                            for a in maska:
-                                for b in maska:
-                                    if i == j or a == b:
-                                        continue
-                                    D2aa[a,b,i,j] = magic * D2scale
-                    for i in maska:
-                        for j in maskb:
-                            for a in maska:
-                                for b in maskb:
-                                    if i == j or a == b:
-                                        continue
-                                    D2ab[a,b,i,j] = magic * D2scale
-                    for i in maskb:
-                        for j in maskb:
-                            for a in maskb:
-                                for b in maskb:
-                                    if i == j or a == b:
-                                        continue
-                                    D2bb[a,b,i,j] = magic * D2scale
+                if D1corr is not None:
+                    if D1corr.ndim == 3:
+                        D1a += D1corr[0]
+                        D1b += D1corr[1]
+                    else:
+                        D1a += D1corr
+                        D1b += D1corr
+                if D2corr is not None:
+                    if D2corr.ndim == 5:
+                        D2aa += D2corr[0]
+                        D2bb += D2corr[1]
+                        D2ab += D2corr[2]
+                    else:
+                        D2aa += D2corr
+                        D2bb += D2corr
+                        D2ab += D2corr
                 # @@@@@@@
-
+        
                 T1aold = divide(T1aold, D1a)
                 T1bold = divide(T1bold, D1b)
                 T2aaold = divide(T2aaold, D2aa)
