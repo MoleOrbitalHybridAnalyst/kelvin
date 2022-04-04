@@ -88,12 +88,12 @@ class ccsd(object):
         # ON- and OE-relaxation contribution to 1-rdm
         self.r1rdm = None
 
-    def run(self, T1=None, T2=None, D1corr=None, D2corr=None):
+    def run(self, T1=None, T2=None, D1corr=None, D2corr=None, scaleI=True):
         if self.finite_T:
             logging.info('Running CCSD at an electronic temperature of %f K'
                 % ft_utils.HtoK(self.T))
             if self.sys.has_u():
-                return self._ft_uccsd(T1in=T1, T2in=T2, D1corr=D1corr, D2corr=D2corr)
+                return self._ft_uccsd(T1in=T1, T2in=T2, D1corr=D1corr, D2corr=D2corr, scaleI=scaleI)
             else:
                 return self._ft_ccsd(T1in=T1, T2in=T2)
         else:
@@ -111,7 +111,7 @@ class ccsd(object):
     def _ft_ccsd(self, T1in=None, T2in=None):
         raise NotImplementedError()
 
-    def _ft_uccsd(self, T1in=None, T2in=None, D1corr=None, D2corr=None):
+    def _ft_uccsd(self, T1in=None, T2in=None, D1corr=None, D2corr=None, scaleI=True):
         '''
         CCSD with FT smearing
         '''
@@ -137,11 +137,59 @@ class ccsd(object):
             E1 = self.sys.get_mp1()
             E01 = E0 + E1
 
-            if self.athresh > 0.0:
-                raise NotImplementedError()
+            if scaleI:
+                if self.athresh > 0.0:
+                    raise NotImplementedError()
+                else:
+                    # get FT-scaled integrals
+                    Fa, Fb, Ia, Ib, Iabab = cc_utils.uft_integrals(self.sys, ea, eb, beta, mu)
             else:
-                # get FT-scaled integrals
-                Fa, Fb, Ia, Ib, Iabab = cc_utils.uft_integrals(self.sys, ea, eb, beta, mu)
+                from cqcpy.ov_blocks import one_e_blocks,two_e_blocks,two_e_blocks_full
+                foa = ft_utils.ff(beta, ea, mu)
+                fob = ft_utils.ff(beta, eb, mu)
+                maskoa = foa > self.degcr
+                maskob = fob > self.degcr
+                maskva = ~maskoa
+                maskvb = ~maskob
+
+                Fa, Fb = self.sys.u_fock_tot()
+                Fa = Fa - numpy.diag(ea)
+                Fb = Fb - numpy.diag(eb)
+                Fa = one_e_blocks(None, Fa, Fa, None)
+                Fb = one_e_blocks(None, Fb, Fb, None)
+
+                eriA, eriB, eriAB = self.sys.u_aint_tot()
+                Ioovv = numpy.zeros_like(eriA)
+                Ivvoo = numpy.zeros_like(eriA)
+                Ioovv[numpy.ix_(maskoa,maskoa,maskva,maskva)] = \
+                        eriA[numpy.ix_(maskoa,maskoa,maskva,maskva)]
+                Ivvoo[numpy.ix_(maskva,maskva,maskoa,maskoa)] = \
+                        eriA[numpy.ix_(maskva,maskva,maskoa,maskoa)]
+                Ia = two_e_blocks(
+                    vvvv=None, vvvo=None, vovv=None, vvoo=Ivvoo,
+                    vovo=None, oovv=Ioovv, vooo=None, ooov=None, oooo=None)
+                Ioovv = numpy.zeros_like(eriB)
+                Ivvoo = numpy.zeros_like(eriB)
+                Ioovv[numpy.ix_(maskob,maskob,maskvb,maskvb)] = \
+                        eriB[numpy.ix_(maskob,maskob,maskvb,maskvb)]
+                Ivvoo[numpy.ix_(maskvb,maskvb,maskob,maskob)] = \
+                        eriB[numpy.ix_(maskvb,maskvb,maskob,maskob)]
+                Ib = two_e_blocks(
+                    vvvv=None, vvvo=None, vovv=None, vvoo=Ivvoo,
+                    vovo=None, oovv=Ioovv, vooo=None, ooov=None, oooo=None)
+                Ioovv = numpy.zeros_like(eriAB)
+                Ivvoo = numpy.zeros_like(eriAB)
+                Ioovv[numpy.ix_(maskoa,maskob,maskva,maskvb)] = \
+                        eriAB[numpy.ix_(maskoa,maskob,maskva,maskvb)]
+                Ivvoo[numpy.ix_(maskva,maskvb,maskoa,maskob)] = \
+                        eriAB[numpy.ix_(maskva,maskvb,maskoa,maskob)]
+                Iabab = two_e_blocks_full(
+                        vvvv=None, vvvo=None, vvov=None,
+                        vovv=None, ovvv=None, vvoo=Ivvoo,
+                        vovo=None, ovvo=None, voov=None,
+                        ovov=None, oovv=Ioovv, vooo=None,
+                        ovoo=None, oovo=None, ooov=None,
+                        oooo=None)
 
         else:
             pass
@@ -217,45 +265,6 @@ class ccsd(object):
                 Ia.oovv, Ib.oovv, Iabab.oovv, Qterm=False)
             logging.info('MP2 Energy: {:.10f}'.format(E2))
 
-#            if self.dt is not None:
-#                numpy.fill_diagonal(D1a, 0)
-#                numpy.fill_diagonal(D1b, 0)
-#                numpy.fill_diagonal(D2aa, 0)
-#                numpy.fill_diagonal(D2ab, 0)
-#                numpy.fill_diagonal(D2bb, 0)
-#            else:
-##                D1a[numpy.abs(D1a) < self.degcr] = numpy.inf
-##                D1b[numpy.abs(D1b) < self.degcr] = numpy.inf
-##                D2aa[numpy.abs(D2aa) < self.degcr] = numpy.inf
-##                D2ab[numpy.abs(D2ab) < self.degcr] = numpy.inf
-##                D2bb[numpy.abs(D2bb) < self.degcr] = numpy.inf
-#                ha = numpy.max(ea[ea <= mu + self.degcr/2])
-#                ga = sum(numpy.abs(ea - ha) < self.degcr)
-#                hb = numpy.max(eb[eb <= mu + self.degcr/2])
-#                gb = sum(numpy.abs(eb - hb) < self.degcr)
-#                gap  = numpy.min(ea[ea > ha]) - ha
-#                gap += numpy.min(eb[eb > hb]) - hb
-#                gap /= 2
-#                #magic = (len(ea)+len(eb)) * gap / 3 / (ga+gb) / 2
-#                magic = gap / 3 
-#                #magic = numpy.inf
-#                print(len(ea), ga, gap, magic)
-#                print(numpy.min(numpy.abs(D1a)))
-#                print(numpy.min(numpy.abs(D1b)))
-#                print(numpy.min(numpy.abs(D2aa)))
-#                print(numpy.min(numpy.abs(D2ab)))
-#                print(numpy.min(numpy.abs(D2bb)))
-##                print(magic * D1a.size /  numpy.sum(numpy.abs(D1a) < self.degcr)) 
-##                print(magic * D1b.size /  numpy.sum(numpy.abs(D1b) < self.degcr))
-##                print(magic * D2aa.size / numpy.sum(numpy.abs(D2aa) < self.degcr))
-##                print(magic * D2ab.size / numpy.sum(numpy.abs(D2ab) < self.degcr))
-##                print(magic * D2bb.size / numpy.sum(numpy.abs(D2bb) < self.degcr))
-##                D1a[numpy.abs(D1a) < self.degcr] = magic * D1a.size / numpy.sum(numpy.abs(D1a) < self.degcr)
-##                D1b[numpy.abs(D1b) < self.degcr] = magic * D1b.size / numpy.sum(numpy.abs(D1b) < self.degcr)
-##                D2aa[numpy.abs(D2aa) < self.degcr] = magic * D2aa.size / numpy.sum(numpy.abs(D2aa) < self.degcr)
-##                D2ab[numpy.abs(D2ab) < self.degcr] = magic * D2ab.size / numpy.sum(numpy.abs(D2ab) < self.degcr)
-##                D2bb[numpy.abs(D2bb) < self.degcr] = magic * D2bb.size / numpy.sum(numpy.abs(D2bb) < self.degcr)
-
             # @@@@@ use zeros as initials
 #            T1aold = numpy.zeros_like(T1aold)
 #            T1bold = numpy.zeros_like(T1bold)
@@ -272,14 +281,19 @@ class ccsd(object):
             self.T2in = [T2aaold, T2abold, T2bbold]
 
             # run CC iterations
-            Eccn, T1, T2 = cc_utils.zt_ucc_iter(
-                method, T1aold, T1bold, T2aaold, T2abold, T2bbold,
-                Fa, Fb, Ia, Ib, Iabab, D1a, D1b, D2aa, D2ab, D2bb,
-                self.iprint, conv_options, degcr=self.degcr)
+            if self.max_iter < 0:
+                Eccn = E2
+                T1 = self.T1in
+                T2 = self.T2in
+            else:
+                Eccn, T1, T2 = cc_utils.zt_ucc_iter(
+                    method, T1aold, T1bold, T2aaold, T2abold, T2bbold,
+                    Fa, Fb, Ia, Ib, Iabab, D1a, D1b, D2aa, D2ab, D2bb,
+                    self.iprint, conv_options, degcr=self.degcr)
         else:
             pass
 
-        # save D for check
+        # @@@@@ save D for check
         self.D1 = (D1a, D1b)
         self.D2 = (D2aa, D2ab, D2bb)
 
